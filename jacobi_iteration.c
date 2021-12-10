@@ -13,8 +13,9 @@ char **argv;
     int        i_first, i_last;
     MPI_Status status;
     double     diffnorm, gdiffnorm;
-    double     xlocal[(12/4)+2][12];
-    double     xnew[(12/3)+2][12];
+    double     xlocal[(maxn/4)+2][maxn];
+    double     xnew[(maxn/3)+2][maxn];
+	double     x[maxn][maxn];
 
     MPI_Init( &argc, &argv );
 
@@ -32,32 +33,46 @@ char **argv;
     if (rank == 0)        i_first++;
     if (rank == size - 1) i_last--;
 
-    /* Fill the data as specified */
-    for (i=1; i<=maxn/size; i++) 
-	for (j=0; j<maxn; j++) 
-	    xlocal[i][j] = rank;
-    for (j=0; j<maxn; j++) {
-	xlocal[i_first-1][j] = -1;
-	xlocal[i_last+1][j] = -1;
-    }
+    /* Read the data from the named file */
+	if (rank == 0)
+	{
+		FILE *fp;
+		fp =fopen( "in.dat", "r" );
+		if (!fp) MPI_Abort( MPI_COMM_WORLD, 1 );
+		for (i=maxn-1; i>=0; i--) {
+			for (j=0; j<maxn; j++) {
+				fscanf( fp, "%lf", &x[i][j] );
+			}
+			fscanf( fp, "\n" );
+		}
+	}
+	MPI_Scatter(x[0], maxn*(maxn/size), MPI_DOUBLE, xlocal[1], maxn*(maxn/size), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     itcnt = 0;
     do {
-	/* Send up unless I'm at the top, then receive from below */
-	/* Note the use of xlocal[i] for &xlocal[i][0] */
+
+	/*
 	if (rank < size - 1) 
 	    MPI_Send( xlocal[maxn/size], maxn, MPI_DOUBLE, rank + 1, 0, 
 		      MPI_COMM_WORLD );
 	if (rank > 0)
 	    MPI_Recv( xlocal[0], maxn, MPI_DOUBLE, rank - 1, 0, 
 		      MPI_COMM_WORLD, &status );
-	/* Send down unless I'm at the bottom */
 	if (rank > 0) 
 	    MPI_Send( xlocal[1], maxn, MPI_DOUBLE, rank - 1, 1, 
 		      MPI_COMM_WORLD );
 	if (rank < size - 1) 
 	    MPI_Recv( xlocal[maxn/size+1], maxn, MPI_DOUBLE, rank + 1, 1, 
 		      MPI_COMM_WORLD, &status );
+	*/
+	if (rank > 0)
+    {
+    	MPI_Sendrecv(xlocal[1], maxn, MPI_DOUBLE, rank-1, 1, xlocal[0], maxn, MPI_DOUBLE, rank-1, 0, MPI_COMM_WORLD, &status);
+    }
+    if (rank < size - 1)
+    {
+        MPI_Sendrecv(xlocal[maxn/size], maxn, MPI_DOUBLE, rank+1, 0, xlocal[maxn/size+1], maxn, MPI_DOUBLE, rank+1, 1, MPI_COMM_WORLD, &status);
+    }
 	
 	/* Compute new values (but not on boundary) */
 	itcnt ++;
@@ -81,6 +96,16 @@ char **argv;
 			       gdiffnorm );
     } while (gdiffnorm > 1.0e-2 && itcnt < 100);
 
-    MPI_Finalize( );
+	/* Send solution to proc O */
+	MPI_Gather(xlocal[1], maxn*(maxn/size), MPI_DOUBLE, x, maxn*(maxn/size), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    if (rank == 0) {
+	printf( "Final solution is\n" );
+	for (i=maxn-1; i>=0; i--) {
+	    for (j=0; j<maxn; j++) 
+		printf( "%f ", x[i][j] );
+	    printf( "\n" );
+	}
+    }
+    MPI_Finalize();
     return 0;
 }
