@@ -1,13 +1,7 @@
 {
     "files.associations": {
-        "array": "c",
-        "deque": "c",
+        "*.tcc": "c",
         "string": "c",
-        "unordered_map": "c",
-        "vector": "c",
-        "string_view": "c",
-        "initializer_list": "c",
-        "mpi.h": "c",
-        "type_traits": "c"
+        "string_view": "c"
     }
 }
